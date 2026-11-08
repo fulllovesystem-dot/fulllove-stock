@@ -1,0 +1,69 @@
+rules_version = '2';
+
+// 爱满天下 · 货物管理 — Firestore 安全规则
+// 贴到 Firebase → Firestore Database → Rules → Publish
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function signedIn() {
+      return request.auth != null;
+    }
+    function userDoc() {
+      return /databases/$(database)/documents/users/$(request.auth.uid);
+    }
+    // 有账号、而且没有被停用
+    function isActive() {
+      return signedIn() && exists(userDoc()) && get(userDoc()).data.active == true;
+    }
+    function isAdmin() {
+      return isActive() && get(userDoc()).data.role == 'admin';
+    }
+    // 第一次使用：还没有管理员，正在建立第一个管理员
+    function isFirstSetup() {
+      let setup = /databases/$(database)/documents/meta/setup;
+      return signedIn()
+        && !exists(setup)
+        && getAfter(setup).data.adminUid == request.auth.uid;
+    }
+
+    // 记录有没有管理员（登录页面要读）
+    match /meta/setup {
+      allow get: if true;
+      allow create: if signedIn() && request.resource.data.adminUid == request.auth.uid;
+      allow update, delete: if false;
+    }
+
+    // 员工资料（名字、角色、有没有停用）
+    match /users/{uid} {
+      allow get: if isActive() || (signedIn() && request.auth.uid == uid);
+      allow list: if isActive();
+      allow create: if isAdmin()
+        || (isFirstSetup() && uid == request.auth.uid && request.resource.data.role == 'admin');
+      allow update: if isAdmin();
+      allow delete: if false;
+    }
+
+    // 名字 → 登录用的内部 Email（登录前要读，所以公开 get，但不能 list 全部）
+    match /loginNames/{key} {
+      allow get: if true;
+      allow list: if isAdmin();
+      allow create: if isAdmin() || isFirstSetup();
+      allow update, delete: if isAdmin();
+    }
+
+    // 货物、进出货记录：有效员工都可以读写
+    match /items/{id} {
+      allow read, write: if isActive();
+    }
+    match /movements/{id} {
+      allow read, write: if isActive();
+    }
+
+    // 修改记录：只能新增，永远不能改或删
+    match /audit_log/{id} {
+      allow read: if isActive();
+      allow create: if isActive() && request.resource.data.userId == request.auth.uid;
+      allow update, delete: if false;
+    }
+  }
+}

@@ -17,12 +17,14 @@ export const CATEGORIES = [
   { id: "gift", name: "赠送用品 / Gift Supplies", examples: "礼品、赠品", color: "bg-violet-500" },
   { id: "milk", name: "奶粉用品 / Milk Formula", examples: "奶粉、辅食", color: "bg-orange-500" },
   { id: "cleaning", name: "清洁用品 / Cleaning Supplies", examples: "洗洁精、漂白水、抹布、垃圾袋", color: "bg-cyan-600" },
+  { id: "baking", name: "烘焙用品 / Baking Supplies", examples: "面粉、糖、牛油、酵母、烘焙材料", color: "bg-amber-800" },
 ];
 
 // 小分类预设（新增货物时可选，也可以自己输入）
 export const SUBCATEGORIES = {
   kitchen: ["干粮", "米", "酒", "罐头", "面", "粉", "酱"],
   food: ["鱼", "猪肉", "鸡肉", "冷冻食品"],
+  baking: ["面粉", "糖", "牛油", "奶油", "酵母"],
 };
 
 export function fmtMoney(n) {

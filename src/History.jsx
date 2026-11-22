@@ -18,7 +18,7 @@ const FIELD = {
   itemName: "货物 / Item",
 };
 
-export default function HistoryTab({ itemName }) {
+export default function HistoryTab({ itemName, allowed = () => true }) {
   const [rows, setRows] = useState([]);
   const [loaded, setLoaded] = useState(false);
   const [err, setErr] = useState("");
@@ -56,6 +56,8 @@ export default function HistoryTab({ itemName }) {
     };
   }, [day]);
 
+  const shown = rows.filter(allowed);
+
   const describe = (r) => {
     const d = r.newData ?? r.oldData ?? {};
     const what =
@@ -80,7 +82,7 @@ export default function HistoryTab({ itemName }) {
         <button onClick={() => setDay("")} className="rounded-lg border border-stone-300 px-3 py-1 hover:bg-stone-50">
           全部（最近 1000 条）/ All (latest 1000)
         </button>
-        <span className="text-stone-500">共 {rows.length} 条 / records · 记录永久保存，不能删除 / Permanent, cannot be deleted</span>
+        <span className="text-stone-500">共 {shown.length} 条 / records · 记录永久保存，不能删除 / Permanent, cannot be deleted</span>
       </div>
       {err && <div className="rounded-lg bg-red-50 p-3 text-sm text-red-700">{err}</div>}
       {!loaded ? (
@@ -97,14 +99,14 @@ export default function HistoryTab({ itemName }) {
               </tr>
             </thead>
             <tbody>
-              {rows.length === 0 && (
+              {shown.length === 0 && (
                 <tr>
                   <td colSpan={4} className="py-10 text-center text-stone-400">
                     还没有记录 / No history yet
                   </td>
                 </tr>
               )}
-              {rows.map((r) => {
+              {shown.map((r) => {
                 const { what, changes } = describe(r);
                 return (
                   <tr key={r.id} className="border-t border-stone-100 align-top">

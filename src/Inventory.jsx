@@ -48,7 +48,29 @@ async function run(fn) {
 }
 
 export default function Inventory({ me, signOut }) {
-  const { items, movements, loaded, error } = useInventory();
+  const { items: allItemsRaw, movements: allMovesRaw, loaded, error } = useInventory();
+  // 员工只看自己部门的货物和进出货；管理员 / 有库存权限的人看全部
+  const myCats = useMemo(
+    () => (me.allDepts ? CATEGORIES : CATEGORIES.filter((c) => me.departments.includes(c.id))),
+    [me.allDepts, me.departments]
+  );
+  const items = useMemo(
+    () => (me.allDepts ? allItemsRaw : allItemsRaw.filter((i) => me.departments.includes(i.categoryId))),
+    [allItemsRaw, me.allDepts, me.departments]
+  );
+  const movements = useMemo(() => {
+    if (me.allDepts) return allMovesRaw;
+    const ids = new Set(items.map((i) => i.id));
+    return allMovesRaw.filter((m) => ids.has(m.itemId));
+  }, [allMovesRaw, items, me.allDepts]);
+  // 修改记录：员工只看到自己部门的
+  const historyAllowed = (r) => {
+    if (me.allDepts) return true;
+    const d = r.newData ?? r.oldData ?? {};
+    if (r.table === "items") return me.departments.includes(d.categoryId);
+    const it = allItemsRaw.find((i) => i.id === d.itemId);
+    return !!it && me.departments.includes(it.categoryId);
+  };
   // 有权限的人（管理员 / 被打勾的员工）才看得到库存、月尾结算、货物资料
   const canStock = me.canManageItems;
   const [tab, setTab] = useState(canStock ? "stock" : "in");
@@ -161,8 +183,8 @@ export default function Inventory({ me, signOut }) {
         {((tab === "stock" && !locked("stock")) || tab === "in" || tab === "out") && (
           <div className="mb-5 space-y-3">
             <div className="flex flex-wrap gap-2">
-              <CatChip active={activeCat === "all"} onClick={() => setActiveCat("all")} label="全部 / All" />
-              {CATEGORIES.map((c) => (
+              <CatChip active={activeCat === "all"} onClick={() => setActiveCat("all")} label={me.allDepts ? "全部 / All" : "我的部门 / My departments"} />
+              {myCats.map((c) => (
                 <CatChip key={c.id} active={activeCat === c.id} onClick={() => setActiveCat(c.id)} label={c.name} dot={c.color} />
               ))}
             </div>
@@ -175,6 +197,12 @@ export default function Inventory({ me, signOut }) {
                 className="w-full rounded-lg border border-stone-300 bg-white py-2 pl-9 pr-3 text-sm outline-none focus:border-rose-400 focus:ring-2 focus:ring-rose-100"
               />
             </div>
+          </div>
+        )}
+
+        {!me.allDepts && me.departments.length === 0 && (
+          <div className="mb-4 rounded-lg bg-amber-50 p-3 text-sm text-amber-800">
+            管理员还没给你分配部门，请找管理员 / No department assigned yet — please ask the admin
           </div>
         )}
 
@@ -218,7 +246,7 @@ export default function Inventory({ me, signOut }) {
             )}
             {tab === "report" && canStock && <ReportTab items={sortedAll} movements={movements} />}
             {tab === "items" && canStock && <ItemsTab allItems={items} movements={movements} stockOf={stockOf} actions={actions} />}
-            {tab === "history" && <HistoryTab itemName={itemName} />}
+            {tab === "history" && <HistoryTab itemName={itemName} allowed={historyAllowed} />}
             {tab === "accounts" && me.isAdmin && <AccountsTab me={me} />}
           </>
         )}

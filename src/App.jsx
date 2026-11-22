@@ -51,6 +51,9 @@ export default function App() {
           role: u.role,
           isAdmin: u.role === "admin",
           canManageItems: u.role === "admin" || u.canManageItems === true,
+          // 管理员和有库存权限的人看全部部门；其他员工只看自己部门
+          allDepts: u.role === "admin" || u.canManageItems === true,
+          departments: Array.isArray(u.departments) ? u.departments : [],
         },
       });
     } catch (e) {

@@ -100,8 +100,9 @@ async function createAuthUserSeparately(email, password) {
 }
 
 // 管理员开员工账号：名字 + 6 位数 PIN
-export async function createStaff(name, pin, role = "staff") {
+export async function createStaff(name, pin, role = "staff", departments = []) {
   const displayName = validateName(name);
+  if (role !== "admin" && departments.length === 0) throw new Error("请选至少一个部门 / Pick at least one department");
   const password = role === "admin" ? validateAdminPassword(pin) : validatePin(pin);
   const key = nameKey(displayName);
   const existing = await getDoc(doc(db, "loginNames", key));
@@ -114,6 +115,7 @@ export async function createStaff(name, pin, role = "staff") {
     nameKey: key,
     role,
     active: true,
+    departments: role === "admin" ? [] : departments,
     email,
     createdAt: serverTimestamp(),
     createdBy: auth.currentUser?.uid ?? null,
@@ -135,6 +137,7 @@ export async function resetStaffPin(user, newPin) {
     role: user.role,
     active: true,
     canManageItems: !!user.canManageItems,
+    departments: user.departments ?? [],
     email,
     createdAt: serverTimestamp(),
     createdBy: auth.currentUser?.uid ?? null,
@@ -180,5 +183,12 @@ export async function verifyOwnPassword(pw) {
 export async function setCanManageItems(user, value) {
   const b = writeBatch(db);
   b.update(doc(db, "users", user.id), { canManageItems: !!value });
+  await b.commit();
+}
+
+// 管理员设定：员工负责哪些部门（只看到这些部门的货物）
+export async function setDepartments(user, departments) {
+  const b = writeBatch(db);
+  b.update(doc(db, "users", user.id), { departments });
   await b.commit();
 }

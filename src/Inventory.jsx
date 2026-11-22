@@ -49,11 +49,14 @@ async function run(fn) {
 
 export default function Inventory({ me, signOut }) {
   const { items, movements, loaded, error } = useInventory();
-  const [tab, setTab] = useState("stock");
+  // 有权限的人（管理员 / 被打勾的员工）才看得到库存、月尾结算、货物资料
+  const canStock = me.canManageItems;
+  const [tab, setTab] = useState(canStock ? "stock" : "in");
   const [activeCat, setActiveCat] = useState("all");
   const [search, setSearch] = useState("");
   const [showPw, setShowPw] = useState(false);
-  const [itemsUnlocked, setItemsUnlocked] = useState(false);
+  const [unlocked, setUnlocked] = useState(false); // 输入过一次 PIN 就可以进库存 / 货物资料 / 月尾结算
+  const locked = (t) => (t === "stock" || t === "items" || t === "report") && !unlocked;
 
   const itemName = (id) => items.find((i) => i.id === id)?.name ?? "（已删除 / deleted）";
 
@@ -136,13 +139,17 @@ export default function Inventory({ me, signOut }) {
 
       <nav className="sticky top-0 z-10 border-b border-stone-200 bg-white/95 backdrop-blur">
         <div className="mx-auto flex max-w-6xl gap-1 overflow-x-auto px-4">
-          <TabBtn active={tab === "stock"} onClick={() => setTab("stock")} icon={<Package size={16} />} label="库存 / Stock" />
-          {me.canManageItems && (
+          {canStock && (
+            <TabBtn active={tab === "stock"} onClick={() => setTab("stock")} icon={<Package size={16} />} label="库存 / Stock" />
+          )}
+          {canStock && (
             <TabBtn active={tab === "items"} onClick={() => setTab("items")} icon={<BookOpen size={16} />} label="货物资料 / Items" />
           )}
           <TabBtn active={tab === "in"} onClick={() => setTab("in")} icon={<PackagePlus size={16} />} label="进货 / Stock In" />
           <TabBtn active={tab === "out"} onClick={() => setTab("out")} icon={<PackageMinus size={16} />} label="出货 / Stock Out" />
-          <TabBtn active={tab === "report"} onClick={() => setTab("report")} icon={<ClipboardList size={16} />} label="月尾结算 / Monthly Report" />
+          {canStock && (
+            <TabBtn active={tab === "report"} onClick={() => setTab("report")} icon={<ClipboardList size={16} />} label="月尾结算 / Monthly Report" />
+          )}
           <TabBtn active={tab === "history"} onClick={() => setTab("history")} icon={<History size={16} />} label="修改记录 / Edit History" />
           {me.isAdmin && (
             <TabBtn active={tab === "accounts"} onClick={() => setTab("accounts")} icon={<Users size={16} />} label="员工账号 / Staff Accounts" />
@@ -151,7 +158,7 @@ export default function Inventory({ me, signOut }) {
       </nav>
 
       <main className="mx-auto max-w-6xl px-4 py-6">
-        {(tab === "stock" || tab === "in" || tab === "out") && (
+        {((tab === "stock" && !locked("stock")) || tab === "in" || tab === "out") && (
           <div className="mb-5 space-y-3">
             <div className="flex flex-wrap gap-2">
               <CatChip active={activeCat === "all"} onClick={() => setActiveCat("all")} label="全部 / All" />
@@ -177,11 +184,13 @@ export default function Inventory({ me, signOut }) {
           </div>
         )}
 
-        {!loaded && tab !== "history" && tab !== "accounts" ? (
+        {canStock && locked(tab) ? (
+          <ItemsLock me={me} onUnlock={() => setUnlocked(true)} />
+        ) : !loaded && tab !== "history" && tab !== "accounts" ? (
           <div className="py-20 text-center text-sm text-stone-400">正在从云端读取资料… / Loading…</div>
         ) : (
           <>
-            {tab === "stock" && (
+            {tab === "stock" && canStock && (
               <StockTab
                 items={filteredItems}
                 allItems={sortedAll}
@@ -203,17 +212,12 @@ export default function Inventory({ me, signOut }) {
                 allItems={items}
                 movements={movements}
                 stockOf={stockOf}
+                showStock={canStock}
                 actions={actions}
               />
             )}
-            {tab === "report" && <ReportTab items={sortedAll} movements={movements} />}
-            {tab === "items" &&
-              me.canManageItems &&
-              (itemsUnlocked ? (
-                <ItemsTab allItems={items} movements={movements} stockOf={stockOf} actions={actions} />
-              ) : (
-                <ItemsLock me={me} onUnlock={() => setItemsUnlocked(true)} />
-              ))}
+            {tab === "report" && canStock && <ReportTab items={sortedAll} movements={movements} />}
+            {tab === "items" && canStock && <ItemsTab allItems={items} movements={movements} stockOf={stockOf} actions={actions} />}
             {tab === "history" && <HistoryTab itemName={itemName} />}
             {tab === "accounts" && me.isAdmin && <AccountsTab me={me} />}
           </>
@@ -395,7 +399,7 @@ function OutlineBtn({ onClick, children, small }) {
 
 /* ---------------- 进货 / 出货 Tab ---------------- */
 
-function MovementTab({ type, items, allItems, movements, stockOf, actions }) {
+function MovementTab({ type, items, allItems, movements, stockOf, showStock, actions }) {
   const [editing, setEditing] = useState(null);
   const [busy, setBusy] = useState(false);
   const [itemId, setItemId] = useState("");
@@ -486,7 +490,12 @@ function MovementTab({ type, items, allItems, movements, stockOf, actions }) {
         </div>
         {selected && (
           <p className="mt-2 text-xs text-stone-500">
-            现在库存 / Current stock：<b>{stockOf(selected)} {selected.unit}</b> · 单价 / Unit price：{fmtMoney(selected.price)}
+            {showStock && (
+              <>
+                现在库存 / Current stock：<b>{stockOf(selected)} {selected.unit}</b> ·{" "}
+              </>
+            )}
+            单位 / Unit：{selected.unit} · 单价 / Unit price：{fmtMoney(selected.price)}
           </p>
         )}
         <div className="mt-3 flex gap-2">

@@ -121,7 +121,7 @@ export default function AccountsTab({ me }) {
               {!u.replacedBy && (
                 <span className="flex flex-wrap items-center gap-2 text-xs">
                   {u.role === "admin" ? (
-                    <span className="text-stone-400">可以管理货物 / Can manage items ✓</span>
+                    <span className="text-stone-400">可以看库存 · 管理货物 / Stock access ✓</span>
                   ) : (
                     <label className="flex cursor-pointer items-center gap-1 rounded border border-stone-300 px-2 py-1 hover:bg-stone-50">
                       <input
@@ -135,7 +135,7 @@ export default function AccountsTab({ me }) {
                           }
                         }}
                       />
-                      可以管理货物 / Can manage items
+                      可以看库存 · 管理货物 / Stock access
                     </label>
                   )}
                   <button onClick={() => resetPin(u)} className="rounded border border-stone-300 px-2 py-1 hover:bg-stone-50">

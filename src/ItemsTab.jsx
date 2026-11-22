@@ -27,7 +27,7 @@ export function ItemsLock({ me, onUnlock }) {
   return (
     <form onSubmit={submit} className="mx-auto mt-10 max-w-sm space-y-3 rounded-2xl bg-white p-6 shadow-sm">
       <h2 className="flex items-center gap-2 font-semibold">
-        <Lock size={18} className="text-rose-600" /> 货物资料 / Items
+        <Lock size={18} className="text-rose-600" /> 库存 · 货物资料 / Stock · Items
       </h2>
       <p className="text-sm text-stone-500">
         请再输入一次你的{me.isAdmin ? "密码" : " PIN"}才能进入 / Enter your {me.isAdmin ? "password" : "PIN"} to continue

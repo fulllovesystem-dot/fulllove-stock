@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { collection, onSnapshot } from "firebase/firestore";
-import { db } from "./firebase";
+import { signOut } from "firebase/auth";
+import { auth, db } from "./firebase";
 import { createStaff, resetStaffPin, setUserActive } from "./accounts";
 import { inputCls } from "./ui";
 
@@ -40,11 +41,17 @@ export default function AccountsTab({ me }) {
   };
 
   const resetPin = async (u) => {
-    const label = u.role === "admin" ? "新密码（至少 6 个字）/ New password (min 6)" : "新的 6 位数 PIN / New 6-digit PIN";
-    const pin = prompt(`帮「${u.displayName}」换${label}`);
+    const self = u.id === me.uid;
+    const label = u.role === "admin" ? "新密码（至少 6 个字，可以是 6 个数字）/ New password (min 6)" : "新的 6 位数 PIN / New 6-digit PIN";
+    const pin = prompt(`${self ? "换你自己的" : `帮「${u.displayName}」换`}${label}`);
     if (pin === null) return;
     try {
       await resetStaffPin(u, pin.trim());
+      if (self) {
+        alert(`✅ 已换好。现在会登出，请用「${u.displayName}」+ 新密码再登录一次 / Done, please sign in again`);
+        await signOut(auth);
+        return;
+      }
       alert(`✅ 已换好，「${u.displayName}」可以用新的 PIN 登录了 / Done`);
     } catch (x) {
       alert("❌ " + (x?.message || "Failed"));
@@ -113,11 +120,9 @@ export default function AccountsTab({ me }) {
               </span>
               {!u.replacedBy && (
                 <span className="flex gap-2 text-xs">
-                  {u.id !== me.uid && (
-                    <button onClick={() => resetPin(u)} className="rounded border border-stone-300 px-2 py-1 hover:bg-stone-50">
-                      换 PIN / Reset PIN
-                    </button>
-                  )}
+                  <button onClick={() => resetPin(u)} className="rounded border border-stone-300 px-2 py-1 hover:bg-stone-50">
+                    {u.id === me.uid ? "换我的密码 / Reset my password" : "换 PIN / Reset PIN"}
+                  </button>
                   {u.id !== me.uid && (
                     <button onClick={() => toggleActive(u)} className="rounded border border-stone-300 px-2 py-1 hover:bg-stone-50">
                       {u.active ? "停用 / Disable" : "恢复 / Enable"}

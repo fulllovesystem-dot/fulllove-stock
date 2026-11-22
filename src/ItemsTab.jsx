@@ -59,6 +59,10 @@ export default function ItemsTab({ allItems, movements, stockOf, actions }) {
   const [f, setF] = useState({ name: "", sub: "", unit: "", price: "", opening: "", minStock: "" });
 
   const cat = CATEGORIES.find((c) => c.id === catId);
+  // 小分类选单：预设的 + 这个部门已经用过的（打过一次，下次就会出现）
+  const subOptions = [
+    ...new Set([...(SUBCATEGORIES[catId] ?? []), ...allItems.filter((i) => i.categoryId === catId && i.sub).map((i) => i.sub.trim())]),
+  ].filter(Boolean);
   const list = allItems
     .filter((i) => i.categoryId === catId)
     .sort((a, b) => (a.sub ?? "").localeCompare(b.sub ?? "", "zh") || a.name.localeCompare(b.name, "zh"));
@@ -176,9 +180,9 @@ export default function ItemsTab({ allItems, movements, stockOf, actions }) {
               <input autoFocus value={f.name} onChange={(e) => setF({ ...f, name: e.target.value })} placeholder="例如 / e.g. 白米" className={fieldCls} />
             </Field>
             <Field label="小分类 / Subcategory">
-              <input value={f.sub} onChange={(e) => setF({ ...f, sub: e.target.value })} placeholder="可不填 / Optional" list={`subs-${catId}`} className={fieldCls} />
+              <input value={f.sub} onChange={(e) => setF({ ...f, sub: e.target.value })} placeholder="可不填，或直接打新的 / Optional, type a new one" list={`subs-${catId}`} className={fieldCls} />
               <datalist id={`subs-${catId}`}>
-                {(SUBCATEGORIES[catId] ?? []).map((x) => (
+                {subOptions.map((x) => (
                   <option key={x} value={x} />
                 ))}
               </datalist>

@@ -52,8 +52,13 @@ service cloud.firestore {
     }
 
     // 货物、进出货记录：有效员工都可以读写
+    // 货物资料：只有管理员，或被管理员打勾「可以管理货物」的员工，才能新增 / 修改 / 删除
+    function canManageItems() {
+      return isAdmin() || (isActive() && get(userDoc()).data.get('canManageItems', false) == true);
+    }
     match /items/{id} {
-      allow read, write: if isActive();
+      allow read: if isActive();
+      allow create, update, delete: if canManageItems();
     }
     match /movements/{id} {
       allow read, write: if isActive();

@@ -73,9 +73,11 @@ export default function ItemDetail({ item, movements, stockOf, actions, onClose,
             </p>
           </div>
           <div className="flex items-center gap-2">
-            <button onClick={onEditItem} className="flex items-center gap-1 rounded-lg border border-stone-300 px-3 py-1.5 text-xs hover:bg-stone-50">
-              <Pencil size={14} /> 改资料 / Edit
-            </button>
+            {onEditItem && (
+              <button onClick={onEditItem} className="flex items-center gap-1 rounded-lg border border-stone-300 px-3 py-1.5 text-xs hover:bg-stone-50">
+                <Pencil size={14} /> 改资料 / Edit
+              </button>
+            )}
             <button onClick={onClose} aria-label="关闭 / Close" className="text-stone-400 hover:text-stone-700">
               <X size={20} />
             </button>

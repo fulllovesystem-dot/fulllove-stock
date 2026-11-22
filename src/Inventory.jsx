@@ -12,6 +12,7 @@ import {
   X,
   History,
   Users,
+  BookOpen,
   KeyRound,
 } from "lucide-react";
 import {
@@ -33,6 +34,7 @@ import HistoryTab from "./History";
 import AccountsTab from "./Accounts";
 import ChangePassword from "./ChangePassword";
 import ItemDetail from "./ItemDetail";
+import ItemsTab, { ItemsLock } from "./ItemsTab";
 
 // 写入失败时提醒（例如没网络）
 async function run(fn) {
@@ -51,6 +53,7 @@ export default function Inventory({ me, signOut }) {
   const [activeCat, setActiveCat] = useState("all");
   const [search, setSearch] = useState("");
   const [showPw, setShowPw] = useState(false);
+  const [itemsUnlocked, setItemsUnlocked] = useState(false);
 
   const itemName = (id) => items.find((i) => i.id === id)?.name ?? "（已删除 / deleted）";
 
@@ -134,6 +137,9 @@ export default function Inventory({ me, signOut }) {
       <nav className="sticky top-0 z-10 border-b border-stone-200 bg-white/95 backdrop-blur">
         <div className="mx-auto flex max-w-6xl gap-1 overflow-x-auto px-4">
           <TabBtn active={tab === "stock"} onClick={() => setTab("stock")} icon={<Package size={16} />} label="库存 / Stock" />
+          {me.canManageItems && (
+            <TabBtn active={tab === "items"} onClick={() => setTab("items")} icon={<BookOpen size={16} />} label="货物资料 / Items" />
+          )}
           <TabBtn active={tab === "in"} onClick={() => setTab("in")} icon={<PackagePlus size={16} />} label="进货 / Stock In" />
           <TabBtn active={tab === "out"} onClick={() => setTab("out")} icon={<PackageMinus size={16} />} label="出货 / Stock Out" />
           <TabBtn active={tab === "report"} onClick={() => setTab("report")} icon={<ClipboardList size={16} />} label="月尾结算 / Monthly Report" />
@@ -185,6 +191,8 @@ export default function Inventory({ me, signOut }) {
                 activeCat={activeCat}
                 onCatChange={setActiveCat}
                 actions={actions}
+                canManageItems={me.canManageItems}
+                onGoItems={() => setTab("items")}
               />
             )}
             {(tab === "in" || tab === "out") && (
@@ -199,6 +207,13 @@ export default function Inventory({ me, signOut }) {
               />
             )}
             {tab === "report" && <ReportTab items={sortedAll} movements={movements} />}
+            {tab === "items" &&
+              me.canManageItems &&
+              (itemsUnlocked ? (
+                <ItemsTab allItems={items} movements={movements} stockOf={stockOf} actions={actions} />
+              ) : (
+                <ItemsLock me={me} onUnlock={() => setItemsUnlocked(true)} />
+              ))}
             {tab === "history" && <HistoryTab itemName={itemName} />}
             {tab === "accounts" && me.isAdmin && <AccountsTab me={me} />}
           </>
@@ -242,59 +257,9 @@ const fieldCls = "rounded-lg border border-stone-300 bg-white px-3 py-2 text-sm 
 
 /* ---------------- 库存 Tab ---------------- */
 
-function StockTab({ items, allItems, stockOf, movements, totalValue, activeCat, onCatChange, actions }) {
-  const [showForm, setShowForm] = useState(false);
-  const [editing, setEditing] = useState(null);
-  const [busy, setBusy] = useState(false);
-  const [name, setName] = useState("");
-  const [categoryId, setCategoryId] = useState(CATEGORIES[0].id);
-  const [sub, setSub] = useState("");
-  const [unit, setUnit] = useState("");
-  const [price, setPrice] = useState("");
-  const [opening, setOpening] = useState("");
+function StockTab({ items, allItems, stockOf, movements, totalValue, activeCat, onCatChange, actions, canManageItems, onGoItems }) {
   const [detailId, setDetailId] = useState(null);
   const detailItem = allItems.find((i) => i.id === detailId);
-
-  const resetForm = () => {
-    setEditing(null);
-    setShowForm(false);
-    setName("");
-    setSub("");
-    setUnit("");
-    setPrice("");
-    setOpening("");
-  };
-
-  const openEdit = (i) => {
-    setEditing(i);
-    setShowForm(true);
-    setName(i.name);
-    setCategoryId(i.categoryId);
-    setSub(i.sub);
-    setUnit(i.unit);
-    setPrice(String(i.price));
-    setOpening(String(i.opening));
-    window.scrollTo({ top: 0, behavior: "smooth" });
-  };
-
-  const submit = async () => {
-    if (!name.trim() || busy) return;
-    const fields = {
-      categoryId,
-      sub: sub.trim(),
-      name: name.trim(),
-      unit: unit.trim() || "个",
-      price: parseFloat(price) || 0,
-      opening: parseFloat(opening) || 0,
-    };
-    setBusy(true);
-    const ok = editing ? await actions.updateItem(editing, { ...editing, ...fields }) : await actions.addItem(fields);
-    setBusy(false);
-    if (!ok) return;
-    resetForm();
-    // 新货物建好以后，直接打开它，可以马上加进货
-    if (!editing && typeof ok === "string") setDetailId(ok);
-  };
 
   const catValues = CATEGORIES.map((c) => ({
     ...c,
@@ -317,85 +282,19 @@ function StockTab({ items, allItems, stockOf, movements, totalValue, activeCat, 
           <OutlineBtn onClick={() => printListing(allItems, movements, stockOf)}>
             <Printer size={16} /> 打印清单 / Print List
           </OutlineBtn>
-          <button
-            onClick={() => {
-              resetForm();
-              // 上面选了哪个分类，新货物就默认那个分类
-              if (activeCat !== "all") setCategoryId(activeCat);
-              setShowForm(true);
-            }}
-            className="flex items-center gap-1.5 rounded-lg bg-rose-600 px-4 py-2.5 text-sm font-medium text-white shadow hover:bg-rose-700"
-          >
-            <Plus size={16} /> 新增货物 / Add Item
-          </button>
         </div>
       </div>
 
-      {showForm && (
-        <div className="mb-4 rounded-xl border border-rose-200 bg-white p-4 shadow-sm">
-          <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
-            <h3 className="font-semibold">{editing ? "修改货物 / Edit Item" : "新增货物 / Add Item"}</h3>
-            <button onClick={resetForm} aria-label="关闭 / Close" className="text-stone-400 hover:text-stone-600">
-              <X size={18} />
-            </button>
-          </div>
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">
-            <Field label="分类 / Department *">
-              <select
-                value={categoryId}
-                onChange={(e) => {
-                  setCategoryId(e.target.value);
-                  setSub("");
-                }}
-                className={`w-full ${fieldCls}`}
-              >
-                {CATEGORIES.map((c) => (
-                  <option key={c.id} value={c.id}>
-                    {c.name}
-                  </option>
-                ))}
-              </select>
-            </Field>
-            <Field label="货物名称 / Item Name *">
-              <input autoFocus value={name} onChange={(e) => setName(e.target.value)} placeholder="例如 / e.g. 白米" className={`w-full ${fieldCls}`} />
-            </Field>
-            <Field label="小分类 / Subcategory">
-              <input value={sub} onChange={(e) => setSub(e.target.value)} placeholder="可不填 / Optional" list={`subs-${categoryId}`} className={`w-full ${fieldCls}`} />
-              <datalist id={`subs-${categoryId}`}>
-                {(SUBCATEGORIES[categoryId] ?? []).map((x) => (
-                  <option key={x} value={x} />
-                ))}
-              </datalist>
-            </Field>
-            <Field label="单位 / Unit">
-              <input value={unit} onChange={(e) => setUnit(e.target.value)} placeholder="包、kg、罐、套" className={`w-full ${fieldCls}`} />
-            </Field>
-            <Field label="单价 / Unit Price (RM)">
-              <input value={price} onChange={(e) => setPrice(e.target.value)} type="number" min="0" step="0.01" placeholder="0.00" className={`w-full ${fieldCls}`} />
-            </Field>
-            {editing && Number(opening) !== 0 && (
-              <Field label="期初库存 / Opening Stock（旧资料）">
-                <input value={opening} onChange={(e) => setOpening(e.target.value)} type="number" min="0" step="any" className={`w-full ${fieldCls}`} />
-              </Field>
-            )}
-          </div>
-          {!editing && (
-            <p className="mt-2 text-xs text-stone-500">
-              保存以后会打开这样货物，再按「+ 进货」输入数量 / After saving, add stock in from the item page
-            </p>
-          )}
-          <button
-            onClick={submit}
-            disabled={busy}
-            className="mt-3 rounded-lg bg-rose-600 px-5 py-2 text-sm font-medium text-white hover:bg-rose-700 disabled:opacity-50"
-          >
-            {editing ? "保存修改 / Save Changes" : "保存 / Save"}
-          </button>
-        </div>
-      )}
-
       {items.length === 0 ? (
-        <EmptyState text={allItems.length === 0 ? "还没有货物 / No items yet" : "没有符合条件的货物 / No matching items"} />
+        <EmptyState
+          text={
+            allItems.length === 0
+              ? canManageItems
+                ? "还没有货物，请到「货物资料」页面新增 / No items yet — add them in the Items page"
+                : "还没有货物，请找负责的同事新增 / No items yet"
+              : "没有符合条件的货物 / No matching items"
+          }
+        />
       ) : (
         <div className="overflow-x-auto rounded-xl bg-white shadow-sm">
           <table className="w-full min-w-[720px] text-sm">
@@ -406,7 +305,7 @@ function StockTab({ items, allItems, stockOf, movements, totalValue, activeCat, 
                 <th className="px-4 py-3 text-right">单价 / Unit Price</th>
                 <th className="px-4 py-3 text-right">库存 / Stock</th>
                 <th className="px-4 py-3 text-right">库存价值 / Stock Value</th>
-                <th className="px-4 py-3 text-right">操作 / Actions</th>
+                <th className="px-4 py-3 text-right">进出货 / In · Out</th>
               </tr>
             </thead>
             <tbody>
@@ -427,34 +326,18 @@ function StockTab({ items, allItems, stockOf, movements, totalValue, activeCat, 
                         {cat?.name ?? "其他 / Other"}
                       </span>
                     </td>
-                    <td className="px-4 py-3 text-right">
-                      <PriceInput item={i} onSave={(p) => actions.updateItem(i, { ...i, price: p })} />
-                    </td>
+                    <td className="px-4 py-3 text-right text-stone-600">{fmtMoney(i.price)}</td>
                     <td className={`px-4 py-3 text-right font-semibold ${stock <= 0 ? "text-red-600" : stock <= 5 ? "text-amber-600" : ""}`}>
                       {stock} {i.unit}
                     </td>
                     <td className="px-4 py-3 text-right text-stone-600">{fmtMoney(stock * i.price)}</td>
                     <td className="px-4 py-3 text-right">
-                      <div className="flex items-center justify-end gap-2">
-                        <button
-                          onClick={() => setDetailId(i.id)}
-                          className="whitespace-nowrap rounded-lg border border-emerald-300 bg-emerald-50 px-2.5 py-1 text-xs font-medium text-emerald-700 hover:bg-emerald-100"
-                        >
-                          进 / 出货 · In / Out
-                        </button>
-                        <button onClick={() => openEdit(i)} className="text-stone-400 hover:text-rose-600" title="修改 / Edit">
-                          <Pencil size={16} />
-                        </button>
-                        <button
-                          onClick={() => {
-                            if (confirm(`确定删除「${i.name}」？相关进出货记录也会删除。\nDelete this item and all its stock movements?`)) actions.deleteItem(i);
-                          }}
-                          className="text-stone-400 hover:text-red-600"
-                          title="删除 / Delete"
-                        >
-                          <Trash2 size={16} />
-                        </button>
-                      </div>
+                      <button
+                        onClick={() => setDetailId(i.id)}
+                        className="whitespace-nowrap rounded-lg border border-emerald-300 bg-emerald-50 px-2.5 py-1 text-xs font-medium text-emerald-700 hover:bg-emerald-100"
+                      >
+                        进 / 出货 · In / Out
+                      </button>
                     </td>
                   </tr>
                 );
@@ -463,6 +346,7 @@ function StockTab({ items, allItems, stockOf, movements, totalValue, activeCat, 
           </table>
         </div>
       )}
+
       {detailItem && (
         <ItemDetail
           item={detailItem}
@@ -470,47 +354,17 @@ function StockTab({ items, allItems, stockOf, movements, totalValue, activeCat, 
           stockOf={stockOf}
           actions={actions}
           onClose={() => setDetailId(null)}
-          onEditItem={() => {
-            setDetailId(null);
-            openEdit(detailItem);
-          }}
+          onEditItem={
+            canManageItems
+              ? () => {
+                  setDetailId(null);
+                  onGoItems();
+                }
+              : null
+          }
         />
       )}
     </div>
-  );
-}
-
-function Field({ label, children }) {
-  return (
-    <label className="block text-xs font-medium text-stone-500">
-      {label}
-      <div className="mt-1">{children}</div>
-    </label>
-  );
-}
-
-// 表格里直接改单价：离开格子或按 Enter 才保存
-function PriceInput({ item, onSave }) {
-  const [v, setV] = useState(null);
-  const shown = v ?? String(item.price);
-  const commit = () => {
-    if (v === null) return;
-    const p = parseFloat(v) || 0;
-    setV(null);
-    if (p !== item.price) onSave(p);
-  };
-  return (
-    <input
-      type="number"
-      min="0"
-      step="0.01"
-      value={shown}
-      onChange={(e) => setV(e.target.value)}
-      onBlur={commit}
-      onKeyDown={(e) => e.key === "Enter" && e.currentTarget.blur()}
-      title="点一下就可以改单价 / Click to edit price"
-      className="w-24 rounded border border-transparent px-2 py-1 text-right text-sm hover:border-stone-300 focus:border-rose-400 focus:outline-none"
-    />
   );
 }
 

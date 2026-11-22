@@ -45,7 +45,13 @@ export default function App() {
         ready: true,
         needSetup: false,
         blocked: "",
-        me: { uid: user.uid, name: u.displayName, role: u.role, isAdmin: u.role === "admin" },
+        me: {
+          uid: user.uid,
+          name: u.displayName,
+          role: u.role,
+          isAdmin: u.role === "admin",
+          canManageItems: u.role === "admin" || u.canManageItems === true,
+        },
       });
     } catch (e) {
       setState({ ready: true, me: null, needSetup: false, blocked: "读取账号失败 / Failed to load account: " + (e?.message || e) });

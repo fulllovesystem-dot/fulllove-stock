@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { collection, onSnapshot } from "firebase/firestore";
 import { signOut } from "firebase/auth";
 import { auth, db } from "./firebase";
-import { createStaff, resetStaffPin, setUserActive } from "./accounts";
+import { createStaff, resetStaffPin, setUserActive, setCanManageItems } from "./accounts";
 import { inputCls } from "./ui";
 
 export default function AccountsTab({ me }) {
@@ -119,7 +119,25 @@ export default function AccountsTab({ me }) {
                 {u.replacedBy && <span className="ml-1 text-xs text-stone-400">（已换 PIN / PIN replaced）</span>}
               </span>
               {!u.replacedBy && (
-                <span className="flex gap-2 text-xs">
+                <span className="flex flex-wrap items-center gap-2 text-xs">
+                  {u.role === "admin" ? (
+                    <span className="text-stone-400">可以管理货物 / Can manage items ✓</span>
+                  ) : (
+                    <label className="flex cursor-pointer items-center gap-1 rounded border border-stone-300 px-2 py-1 hover:bg-stone-50">
+                      <input
+                        type="checkbox"
+                        checked={!!u.canManageItems}
+                        onChange={async (e) => {
+                          try {
+                            await setCanManageItems(u, e.target.checked);
+                          } catch (x) {
+                            alert("❌ " + (x?.message || "Failed"));
+                          }
+                        }}
+                      />
+                      可以管理货物 / Can manage items
+                    </label>
+                  )}
                   <button onClick={() => resetPin(u)} className="rounded border border-stone-300 px-2 py-1 hover:bg-stone-50">
                     {u.id === me.uid ? "换我的密码 / Reset my password" : "换 PIN / Reset PIN"}
                   </button>

@@ -134,6 +134,7 @@ export async function resetStaffPin(user, newPin) {
     nameKey: user.nameKey,
     role: user.role,
     active: true,
+    canManageItems: !!user.canManageItems,
     email,
     createdAt: serverTimestamp(),
     createdBy: auth.currentUser?.uid ?? null,
@@ -162,4 +163,22 @@ export async function changeOwnPassword(currentPw, newPw, isAdmin) {
     throw new Error("现在的密码不对 / Current password is wrong");
   }
   await updatePassword(u, pw);
+}
+
+// 进入货物资料页面前，确认是本人
+export async function verifyOwnPassword(pw) {
+  const u = auth.currentUser;
+  if (!u) throw new Error("请重新登录 / Please sign in again");
+  try {
+    await reauthenticateWithCredential(u, EmailAuthProvider.credential(u.email, String(pw || "")));
+  } catch {
+    throw new Error("PIN / 密码不对 / Wrong PIN or password");
+  }
+}
+
+// 管理员设定：这个员工可不可以管理货物资料
+export async function setCanManageItems(user, value) {
+  const b = writeBatch(db);
+  b.update(doc(db, "users", user.id), { canManageItems: !!value });
+  await b.commit();
 }

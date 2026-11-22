@@ -50,6 +50,7 @@ function toItem(d) {
     unit: x.unit ?? "个",
     price: Number(x.price) || 0,
     opening: Number(x.opening) || 0,
+    minStock: Number(x.minStock) || 0,
   };
 }
 
@@ -129,6 +130,7 @@ function itemFields(i) {
     unit: i.unit || "个",
     price: Number(i.price) || 0,
     opening: Number(i.opening) || 0,
+    minStock: Number(i.minStock) || 0,
   };
 }
 

@@ -56,7 +56,7 @@ export default function ItemsTab({ allItems, movements, stockOf, actions }) {
   const [showForm, setShowForm] = useState(false);
   const [editing, setEditing] = useState(null);
   const [busy, setBusy] = useState(false);
-  const [f, setF] = useState({ name: "", sub: "", unit: "", price: "", opening: "" });
+  const [f, setF] = useState({ name: "", sub: "", unit: "", price: "", opening: "", minStock: "" });
 
   const cat = CATEGORIES.find((c) => c.id === catId);
   const list = allItems
@@ -66,7 +66,7 @@ export default function ItemsTab({ allItems, movements, stockOf, actions }) {
   const resetForm = () => {
     setEditing(null);
     setShowForm(false);
-    setF({ name: "", sub: "", unit: "", price: "", opening: "" });
+    setF({ name: "", sub: "", unit: "", price: "", opening: "", minStock: "" });
   };
 
   const openNew = () => {
@@ -77,7 +77,7 @@ export default function ItemsTab({ allItems, movements, stockOf, actions }) {
   const openEdit = (i) => {
     setEditing(i);
     setShowForm(true);
-    setF({ name: i.name, sub: i.sub, unit: i.unit, price: String(i.price), opening: String(i.opening), categoryId: i.categoryId });
+    setF({ name: i.name, sub: i.sub, unit: i.unit, price: String(i.price), opening: String(i.opening), minStock: i.minStock ? String(i.minStock) : "", categoryId: i.categoryId });
     window.scrollTo({ top: 0, behavior: "smooth" });
   };
 
@@ -95,6 +95,7 @@ export default function ItemsTab({ allItems, movements, stockOf, actions }) {
       unit: f.unit.trim() || "个",
       price: parseFloat(f.price) || 0,
       opening: parseFloat(f.opening) || 0,
+      minStock: parseFloat(f.minStock) || 0,
     };
     setBusy(true);
     const ok = editing ? await actions.updateItem(editing, { ...editing, ...fields }) : await actions.addItem(fields);
@@ -104,7 +105,7 @@ export default function ItemsTab({ allItems, movements, stockOf, actions }) {
       resetForm();
     } else {
       // 连续新增：保留表格，清空名字，方便一直 key in
-      setF((x) => ({ ...x, name: "", price: "" }));
+      setF((x) => ({ ...x, name: "", price: "", minStock: "" }));
     }
   };
 
@@ -188,6 +189,9 @@ export default function ItemsTab({ allItems, movements, stockOf, actions }) {
             <Field label="单价 / Unit Price (RM)">
               <input value={f.price} onChange={(e) => setF({ ...f, price: e.target.value })} type="number" min="0" step="0.01" placeholder="0.00" className={fieldCls} />
             </Field>
+            <Field label="最低库存（低于就提醒进货）/ Min stock">
+              <input value={f.minStock} onChange={(e) => setF({ ...f, minStock: e.target.value })} type="number" min="0" step="any" placeholder="例如 / e.g. 5" className={fieldCls} />
+            </Field>
             {editing && (
               <Field label="部门 / Department">
                 <select value={f.categoryId} onChange={(e) => setF({ ...f, categoryId: e.target.value })} className={fieldCls}>
@@ -231,6 +235,7 @@ export default function ItemsTab({ allItems, movements, stockOf, actions }) {
                 <th className="px-4 py-3">单位 / Unit</th>
                 <th className="px-4 py-3 text-right">单价 / Unit Price</th>
                 <th className="px-4 py-3 text-right">库存 / Stock</th>
+                <th className="px-4 py-3 text-right">最低库存 / Min</th>
                 <th className="px-4 py-3 text-right">操作 / Actions</th>
               </tr>
             </thead>
@@ -245,8 +250,11 @@ export default function ItemsTab({ allItems, movements, stockOf, actions }) {
                   <td className="px-4 py-3 text-right">
                     <PriceInput item={i} onSave={(p) => actions.updateItem(i, { ...i, price: p })} />
                   </td>
-                  <td className="px-4 py-3 text-right text-stone-600">
+                  <td className={`px-4 py-3 text-right ${i.minStock > 0 && stockOf(i) <= i.minStock ? "font-semibold text-red-600" : "text-stone-600"}`}>
                     {stockOf(i)} {i.unit}
+                  </td>
+                  <td className="px-4 py-3 text-right">
+                    <MinInput item={i} onSave={(v) => actions.updateItem(i, { ...i, minStock: v })} />
                   </td>
                   <td className="px-4 py-3 text-right">
                     <div className="flex items-center justify-end gap-3">
@@ -270,7 +278,7 @@ export default function ItemsTab({ allItems, movements, stockOf, actions }) {
             </tbody>
           </table>
           <p className="px-4 py-2 text-xs text-stone-400">
-            {list.length} 样货物 / items · 单价可以直接点一下修改 / Click a price to edit · 库存价值 / Stock value：
+            {list.length} 样货物 / items · 单价和最低库存可以直接点一下修改 / Click price or min stock to edit · 库存价值 / Stock value：
             {fmtMoney(list.reduce((s, i) => s + stockOf(i) * i.price, 0))}
           </p>
         </div>
@@ -309,6 +317,32 @@ function PriceInput({ item, onSave }) {
       onKeyDown={(e) => e.key === "Enter" && e.currentTarget.blur()}
       title="点一下就可以改单价 / Click to edit price"
       className="w-24 rounded border border-transparent px-2 py-1 text-right text-sm hover:border-stone-300 focus:border-rose-400 focus:outline-none"
+    />
+  );
+}
+
+// 表格里直接改最低库存
+function MinInput({ item, onSave }) {
+  const [v, setV] = useState(null);
+  const shown = v ?? (item.minStock ? String(item.minStock) : "");
+  const commit = () => {
+    if (v === null) return;
+    const n = parseFloat(v) || 0;
+    setV(null);
+    if (n !== item.minStock) onSave(n);
+  };
+  return (
+    <input
+      type="number"
+      min="0"
+      step="any"
+      value={shown}
+      placeholder="—"
+      onChange={(e) => setV(e.target.value)}
+      onBlur={commit}
+      onKeyDown={(e) => e.key === "Enter" && e.currentTarget.blur()}
+      title="点一下就可以改最低库存 / Click to edit min stock"
+      className="w-20 rounded border border-transparent px-2 py-1 text-right text-sm hover:border-stone-300 focus:border-rose-400 focus:outline-none"
     />
   );
 }

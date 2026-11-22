@@ -13,6 +13,7 @@ import {
   History,
   Users,
   BookOpen,
+  ShoppingCart,
   KeyRound,
 } from "lucide-react";
 import {
@@ -35,6 +36,7 @@ import AccountsTab from "./Accounts";
 import ChangePassword from "./ChangePassword";
 import ItemDetail from "./ItemDetail";
 import ItemsTab, { ItemsLock } from "./ItemsTab";
+import RestockTab from "./Restock";
 
 // 写入失败时提醒（例如没网络）
 async function run(fn) {
@@ -78,7 +80,7 @@ export default function Inventory({ me, signOut }) {
   const [search, setSearch] = useState("");
   const [showPw, setShowPw] = useState(false);
   const [unlocked, setUnlocked] = useState(false); // 输入过一次 PIN 就可以进库存 / 货物资料 / 月尾结算
-  const locked = (t) => (t === "stock" || t === "items" || t === "report") && !unlocked;
+  const locked = (t) => (t === "stock" || t === "items" || t === "report" || t === "restock") && !unlocked;
 
   const itemName = (id) => items.find((i) => i.id === id)?.name ?? "（已删除 / deleted）";
 
@@ -121,6 +123,10 @@ export default function Inventory({ me, signOut }) {
   );
 
   const totalValue = items.reduce((s, i) => s + stockOf(i) * i.price, 0);
+
+  // 库存不够的货物（库存 ≤ 最低库存，或者没货了）
+  const lowCount = canStock ? items.filter((i) => stockOf(i) <= 0 || (i.minStock > 0 && stockOf(i) <= i.minStock)).length : 0;
+  const isFriday = new Date().getDay() === 5;
 
   const actions = {
     addItem: (i) => run(() => addItem(me, i)),
@@ -165,6 +171,14 @@ export default function Inventory({ me, signOut }) {
             <TabBtn active={tab === "stock"} onClick={() => setTab("stock")} icon={<Package size={16} />} label="库存 / Stock" />
           )}
           {canStock && (
+            <TabBtn
+              active={tab === "restock"}
+              onClick={() => setTab("restock")}
+              icon={<ShoppingCart size={16} />}
+              label={`补货报告 / Restock${lowCount ? ` (${lowCount})` : ""}`}
+            />
+          )}
+          {canStock && (
             <TabBtn active={tab === "items"} onClick={() => setTab("items")} icon={<BookOpen size={16} />} label="货物资料 / Items" />
           )}
           <TabBtn active={tab === "in"} onClick={() => setTab("in")} icon={<PackagePlus size={16} />} label="进货 / Stock In" />
@@ -198,6 +212,22 @@ export default function Inventory({ me, signOut }) {
               />
             </div>
           </div>
+        )}
+
+        {canStock && loaded && (lowCount > 0 || isFriday) && tab !== "restock" && (
+          <button
+            onClick={() => setTab("restock")}
+            className="mb-4 flex w-full flex-wrap items-center gap-2 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-left text-sm text-red-800 hover:bg-red-100"
+          >
+            <ShoppingCart size={18} />
+            {isFriday && <b>今天星期五，记得看补货报告 / It's Friday — check the restock report.</b>}
+            {lowCount > 0 && (
+              <span>
+                有 <b>{lowCount}</b> 样货物库存不够 / {lowCount} items are low
+              </span>
+            )}
+            <span className="ml-auto font-semibold underline">打开补货报告 → / Open</span>
+          </button>
         )}
 
         {!me.allDepts && me.departments.length === 0 && (
@@ -245,6 +275,7 @@ export default function Inventory({ me, signOut }) {
               />
             )}
             {tab === "report" && canStock && <ReportTab items={sortedAll} movements={movements} />}
+            {tab === "restock" && canStock && <RestockTab items={items} movements={movements} />}
             {tab === "items" && canStock && <ItemsTab allItems={items} movements={movements} stockOf={stockOf} actions={actions} />}
             {tab === "history" && <HistoryTab itemName={itemName} allowed={historyAllowed} />}
             {tab === "accounts" && me.isAdmin && <AccountsTab me={me} />}

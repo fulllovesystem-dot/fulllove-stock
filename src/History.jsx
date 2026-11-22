@@ -10,6 +10,7 @@ const FIELD = {
   unit: "单位 / Unit",
   price: "单价 / Price",
   opening: "库存 / Stock",
+  minStock: "最低库存 / Min stock",
   categoryId: "分类 / Category",
   qty: "数量 / Qty",
   date: "日期 / Date",

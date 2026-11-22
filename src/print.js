@@ -185,3 +185,52 @@ export function printReport(groups, totals, rangeLabel) {
     <script>window.onload=()=>{window.print();}</script>
     </body></html>`);
 }
+
+// 每周补货报告（每个部门一页）
+export function printRestock(groups, label, asOf, onlyNeed) {
+  // 只列要进货的时候，不用进货的部门就不印，省纸
+  if (onlyNeed) groups = groups.filter((g) => g.needCount > 0);
+  if (groups.length === 0) {
+    alert("这个星期全部都够，不用进货 / Nothing to restock this week");
+    return;
+  }
+  const statusTxt = (r) =>
+    r.status === "out" ? "没货了 / Out" : r.status === "low" ? "不够 / Low" : r.suggest ? "下周可能不够 / May run low" : "够 / OK";
+  const pages = groups
+    .map((g, idx) => {
+      const rowsHtml = g.list.length
+        ? g.list
+            .map(
+              (r) => `<tr class="${r.status === "ok" ? "" : "bad"}">
+        <td>${esc(r.item.name)}${r.item.sub ? ` <span class="sub">${esc(r.item.sub)}</span>` : ""}</td>
+        <td class="r"><b>${r.stock} ${esc(r.item.unit)}</b></td>
+        <td class="r">${r.min || "—"}</td>
+        <td class="r">${r.weekIn || "—"}</td>
+        <td class="r">${r.weekOut || "—"}</td>
+        <td class="r buy">${r.suggest ? `${r.suggest} ${esc(r.item.unit)}` : "—"}</td>
+        <td>${statusTxt(r)}</td>
+        <td class="w10"></td>
+      </tr>`
+            )
+            .join("")
+        : `<tr><td colspan="8" class="none">这个部门不用进货 / Nothing to restock</td></tr>`;
+      return `<div class="page${idx > 0 ? " break" : ""}">
+        <h1>补货报告 / Restock Report · ${esc(g.cat.name)}</h1>
+        <p class="sub-line">${esc(label)} · 库存算到 / Stock as of ${esc(asOf)} · ${g.needCount} 样要进货 / to restock${onlyNeed ? "（只列要进货的 / restock only）" : ""}</p>
+        <table><thead><tr>
+          <th>货物 / Item</th><th class="r">现在库存 / Stock</th><th class="r">最低 / Min</th><th class="r">本周进货 / In</th><th class="r">本周用量 / Used</th><th class="r">建议进货 / Buy</th><th>状态 / Status</th><th class="w10">已买 / Bought</th>
+        </tr></thead><tbody>${rowsHtml}</tbody></table>
+        <p class="foot">建议进货 = 本周用量 + 最低库存 − 现在库存 / Suggested = weekly usage + min − stock　　打印日期 / Printed: ${today()}</p>
+      </div>`;
+    })
+    .join("");
+  openPrint(`<!doctype html><html lang="zh"><head><meta charset="utf-8"><title>爱满天下 补货报告 ${esc(label)}</title>
+    <style>${BASE_CSS}
+      body{padding:0;margin:0;} .page{padding:28px;} .break{page-break-before:always;}
+      .sub{color:#999;font-size:11px;} .bad td{background:#fff1f2;} .buy{color:#9f1239;font-weight:bold;}
+      .w10{width:10%;} .none{text-align:center;color:#999;}
+    </style></head><body>
+    ${pages}
+    <script>window.onload=()=>{window.print();}</script>
+    </body></html>`);
+}

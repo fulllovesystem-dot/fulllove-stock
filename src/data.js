@@ -150,6 +150,7 @@ export async function addItem(me, item) {
   b.set(ref, { ...data, createdAt: serverTimestamp(), createdBy: me.uid });
   addAudit(b, me, { table: "items", recordId: ref.id, action: "INSERT", newData: data });
   await b.commit();
+  return ref.id;
 }
 
 export async function updateItem(me, oldItem, newItem) {

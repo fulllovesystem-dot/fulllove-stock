@@ -32,12 +32,13 @@ import { printListing, printSimpleListing, printMovements, printReport } from ".
 import HistoryTab from "./History";
 import AccountsTab from "./Accounts";
 import ChangePassword from "./ChangePassword";
+import ItemDetail from "./ItemDetail";
 
 // 写入失败时提醒（例如没网络）
 async function run(fn) {
   try {
-    await fn();
-    return true;
+    const r = await fn();
+    return r ?? true;
   } catch (e) {
     alert("保存失败，请检查网络再试 / Save failed, please check your connection\n\n" + (e?.message || e));
     return false;
@@ -251,6 +252,8 @@ function StockTab({ items, allItems, stockOf, movements, totalValue, activeCat, 
   const [unit, setUnit] = useState("");
   const [price, setPrice] = useState("");
   const [opening, setOpening] = useState("");
+  const [detailId, setDetailId] = useState(null);
+  const detailItem = allItems.find((i) => i.id === detailId);
 
   const resetForm = () => {
     setEditing(null);
@@ -287,7 +290,10 @@ function StockTab({ items, allItems, stockOf, movements, totalValue, activeCat, 
     setBusy(true);
     const ok = editing ? await actions.updateItem(editing, { ...editing, ...fields }) : await actions.addItem(fields);
     setBusy(false);
-    if (ok) resetForm();
+    if (!ok) return;
+    resetForm();
+    // 新货物建好以后，直接打开它，可以马上加进货
+    if (!editing && typeof ok === "string") setDetailId(ok);
   };
 
   const catValues = CATEGORIES.map((c) => ({
@@ -314,6 +320,8 @@ function StockTab({ items, allItems, stockOf, movements, totalValue, activeCat, 
           <button
             onClick={() => {
               resetForm();
+              // 上面选了哪个分类，新货物就默认那个分类
+              if (activeCat !== "all") setCategoryId(activeCat);
               setShowForm(true);
             }}
             className="flex items-center gap-1.5 rounded-lg bg-rose-600 px-4 py-2.5 text-sm font-medium text-white shadow hover:bg-rose-700"
@@ -332,33 +340,50 @@ function StockTab({ items, allItems, stockOf, movements, totalValue, activeCat, 
             </button>
           </div>
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">
-            <input value={name} onChange={(e) => setName(e.target.value)} placeholder="货物名称 / Item Name *" className={fieldCls} />
-            <select
-              value={categoryId}
-              onChange={(e) => {
-                setCategoryId(e.target.value);
-                setSub("");
-              }}
-              className={fieldCls}
-            >
-              {CATEGORIES.map((c) => (
-                <option key={c.id} value={c.id}>
-                  {c.name}
-                </option>
-              ))}
-            </select>
-            <div>
-              <input value={sub} onChange={(e) => setSub(e.target.value)} placeholder="小分类 / Subcategory" list={`subs-${categoryId}`} className={`w-full ${fieldCls}`} />
+            <Field label="分类 / Department *">
+              <select
+                value={categoryId}
+                onChange={(e) => {
+                  setCategoryId(e.target.value);
+                  setSub("");
+                }}
+                className={`w-full ${fieldCls}`}
+              >
+                {CATEGORIES.map((c) => (
+                  <option key={c.id} value={c.id}>
+                    {c.name}
+                  </option>
+                ))}
+              </select>
+            </Field>
+            <Field label="货物名称 / Item Name *">
+              <input autoFocus value={name} onChange={(e) => setName(e.target.value)} placeholder="例如 / e.g. 白米" className={`w-full ${fieldCls}`} />
+            </Field>
+            <Field label="小分类 / Subcategory">
+              <input value={sub} onChange={(e) => setSub(e.target.value)} placeholder="可不填 / Optional" list={`subs-${categoryId}`} className={`w-full ${fieldCls}`} />
               <datalist id={`subs-${categoryId}`}>
-                {(SUBCATEGORIES[categoryId] ?? []).map((s) => (
-                  <option key={s} value={s} />
+                {(SUBCATEGORIES[categoryId] ?? []).map((x) => (
+                  <option key={x} value={x} />
                 ))}
               </datalist>
-            </div>
-            <input value={unit} onChange={(e) => setUnit(e.target.value)} placeholder="单位 / Unit (包, kg, 罐)" className={fieldCls} />
-            <input value={price} onChange={(e) => setPrice(e.target.value)} type="number" min="0" step="0.01" placeholder="单价 / Unit Price (RM)" className={fieldCls} />
-            <input value={opening} onChange={(e) => setOpening(e.target.value)} type="number" min="0" step="any" placeholder="现有库存数量 / Opening Quantity" className={fieldCls} />
+            </Field>
+            <Field label="单位 / Unit">
+              <input value={unit} onChange={(e) => setUnit(e.target.value)} placeholder="包、kg、罐、套" className={`w-full ${fieldCls}`} />
+            </Field>
+            <Field label="单价 / Unit Price (RM)">
+              <input value={price} onChange={(e) => setPrice(e.target.value)} type="number" min="0" step="0.01" placeholder="0.00" className={`w-full ${fieldCls}`} />
+            </Field>
+            {editing && Number(opening) !== 0 && (
+              <Field label="期初库存 / Opening Stock（旧资料）">
+                <input value={opening} onChange={(e) => setOpening(e.target.value)} type="number" min="0" step="any" className={`w-full ${fieldCls}`} />
+              </Field>
+            )}
           </div>
+          {!editing && (
+            <p className="mt-2 text-xs text-stone-500">
+              保存以后会打开这样货物，再按「+ 进货」输入数量 / After saving, add stock in from the item page
+            </p>
+          )}
           <button
             onClick={submit}
             disabled={busy}
@@ -391,7 +416,9 @@ function StockTab({ items, allItems, stockOf, movements, totalValue, activeCat, 
                 return (
                   <tr key={i.id} className="border-b border-stone-100 last:border-0 hover:bg-stone-50">
                     <td className="px-4 py-3 font-medium">
-                      {i.name}
+                      <button onClick={() => setDetailId(i.id)} className="text-left hover:text-rose-700 hover:underline">
+                        {i.name}
+                      </button>
                       {i.sub && <span className="ml-2 rounded-full bg-stone-100 px-2 py-0.5 text-xs font-normal text-stone-500">{i.sub}</span>}
                     </td>
                     <td className="px-4 py-3">
@@ -409,6 +436,12 @@ function StockTab({ items, allItems, stockOf, movements, totalValue, activeCat, 
                     <td className="px-4 py-3 text-right text-stone-600">{fmtMoney(stock * i.price)}</td>
                     <td className="px-4 py-3 text-right">
                       <div className="flex items-center justify-end gap-2">
+                        <button
+                          onClick={() => setDetailId(i.id)}
+                          className="whitespace-nowrap rounded-lg border border-emerald-300 bg-emerald-50 px-2.5 py-1 text-xs font-medium text-emerald-700 hover:bg-emerald-100"
+                        >
+                          进 / 出货 · In / Out
+                        </button>
                         <button onClick={() => openEdit(i)} className="text-stone-400 hover:text-rose-600" title="修改 / Edit">
                           <Pencil size={16} />
                         </button>
@@ -430,7 +463,29 @@ function StockTab({ items, allItems, stockOf, movements, totalValue, activeCat, 
           </table>
         </div>
       )}
+      {detailItem && (
+        <ItemDetail
+          item={detailItem}
+          movements={movements}
+          stockOf={stockOf}
+          actions={actions}
+          onClose={() => setDetailId(null)}
+          onEditItem={() => {
+            setDetailId(null);
+            openEdit(detailItem);
+          }}
+        />
+      )}
     </div>
+  );
+}
+
+function Field({ label, children }) {
+  return (
+    <label className="block text-xs font-medium text-stone-500">
+      {label}
+      <div className="mt-1">{children}</div>
+    </label>
   );
 }
 
@@ -556,12 +611,20 @@ function MovementTab({ type, items, allItems, movements, stockOf, actions }) {
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-5">
           <select value={itemId} onChange={(e) => setItemId(e.target.value)} className={`${fieldCls} lg:col-span-2`}>
             <option value="">选择货物 / Select Item *</option>
-            {options.map((i) => (
-              <option key={i.id} value={i.id}>
-                {i.name}
-                {i.sub ? ` · ${i.sub}` : ""}（{CATEGORIES.find((c) => c.id === i.categoryId)?.name ?? ""}）
-              </option>
-            ))}
+            {CATEGORIES.map((c) => {
+              const list = options.filter((i) => i.categoryId === c.id);
+              if (list.length === 0) return null;
+              return (
+                <optgroup key={c.id} label={c.name}>
+                  {list.map((i) => (
+                    <option key={i.id} value={i.id}>
+                      {i.name}
+                      {i.sub ? ` · ${i.sub}` : ""}（{i.unit}）
+                    </option>
+                  ))}
+                </optgroup>
+              );
+            })}
           </select>
           <input value={qty} onChange={(e) => setQty(e.target.value)} type="number" min="0" step="any" placeholder="数量 / Quantity *" className={fieldCls} />
           <input aria-label="日期 / Date" value={date} onChange={(e) => setDate(e.target.value)} type="date" className={fieldCls} />

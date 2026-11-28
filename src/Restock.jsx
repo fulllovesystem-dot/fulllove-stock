@@ -32,8 +32,10 @@ export function restockRows(items, movements, start, end) {
     const min = item.minStock || 0;
     // 建议进货：够下个星期用（照这个星期的用量），而且还留着最低库存
     const suggest = min > 0 || weekOut > 0 ? Math.max(0, Math.ceil(round(weekOut + min - stock))) : 0;
-    const status = stock <= 0 ? "out" : min > 0 && stock <= min ? "low" : "ok";
-    return { item, stock, weekIn, weekOut, min, suggest, status, need: status !== "ok" || suggest > 0 };
+    // 从来没进过货、也没设最低库存的货物：还没开始用，不算「没货」
+    const started = mine.length > 0 || item.opening !== 0 || min > 0;
+    const status = stock <= 0 ? (started ? "out" : "new") : min > 0 && stock <= min ? "low" : "ok";
+    return { item, stock, weekIn, weekOut, min, suggest, status, need: status === "out" || status === "low" || suggest > 0 };
   });
 }
 
@@ -141,6 +143,8 @@ export default function RestockTab({ items, movements }) {
                         <span className="rounded-full bg-red-100 px-2 py-0.5 text-xs font-semibold text-red-700">没货了 / Out</span>
                       ) : r.status === "low" ? (
                         <span className="rounded-full bg-amber-100 px-2 py-0.5 text-xs font-semibold text-amber-800">不够 / Low</span>
+                      ) : r.status === "new" ? (
+                        <span className="text-xs text-stone-400">还没进过货 / Not started</span>
                       ) : r.suggest ? (
                         <span className="rounded-full bg-sky-100 px-2 py-0.5 text-xs text-sky-800">下周可能不够 / May run low</span>
                       ) : (

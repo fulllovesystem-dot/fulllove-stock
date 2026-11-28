@@ -195,7 +195,7 @@ export function printRestock(groups, label, asOf, onlyNeed) {
     return;
   }
   const statusTxt = (r) =>
-    r.status === "out" ? "没货了 / Out" : r.status === "low" ? "不够 / Low" : r.suggest ? "下周可能不够 / May run low" : "够 / OK";
+    r.status === "out" ? "没货了 / Out" : r.status === "low" ? "不够 / Low" : r.status === "new" ? "还没进过货 / Not started" : r.suggest ? "下周可能不够 / May run low" : "够 / OK";
   const pages = groups
     .map((g, idx) => {
       const rowsHtml = g.list.length

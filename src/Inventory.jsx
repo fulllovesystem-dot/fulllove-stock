@@ -132,7 +132,15 @@ export default function Inventory({ me, signOut }) {
   const totalValue = items.reduce((s, i) => s + stockOf(i) * i.price, 0);
 
   // 库存不够的货物（库存 ≤ 最低库存，或者没货了）
-  const lowCount = canStock ? items.filter((i) => stockOf(i) <= 0 || (i.minStock > 0 && stockOf(i) <= i.minStock)).length : 0;
+  // 从来没进过货的货物不算（还没开始用）
+  const startedIds = useMemo(() => new Set(movements.map((m) => m.itemId)), [movements]);
+  const lowCount = canStock
+    ? items.filter((i) => {
+        const st = stockOf(i);
+        if (i.minStock > 0) return st <= i.minStock;
+        return st <= 0 && (startedIds.has(i.id) || i.opening !== 0);
+      }).length
+    : 0;
   const isFriday = new Date().getDay() === 5;
 
   const actions = {

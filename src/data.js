@@ -10,7 +10,7 @@ import { db } from "./firebase";
 
 export const CATEGORIES = [
   { id: "kitchen", name: "厨房用品 / Kitchen Supplies", examples: "干粮、米、酒、罐头、面、粉、酱", color: "bg-amber-500" },
-  { id: "food", name: "食材用品 / Food Ingredients", examples: "鱼、猪肉、鸡肉、冷冻食品", color: "bg-rose-500" },
+  { id: "food", name: "食材用品 / Food Ingredients", examples: "鱼、猪肉、鸡肉、冷冻食品、新鲜蔬菜、水果", color: "bg-rose-500" },
   { id: "herbal", name: "药膳用品 / Herbal Supplies", examples: "药材、汤包、补品", color: "bg-emerald-600" },
   { id: "baby", name: "婴儿用品 / Baby Supplies", examples: "尿布、湿巾、奶瓶", color: "bg-sky-500" },
   { id: "mom", name: "妈咪用品 / Maternity Supplies", examples: "卫生用品、哺乳用品", color: "bg-fuchsia-500" },
@@ -23,7 +23,7 @@ export const CATEGORIES = [
 // 小分类预设（新增货物时可选，也可以自己输入）
 export const SUBCATEGORIES = {
   kitchen: ["干粮", "米", "酒", "罐头", "面", "粉", "酱"],
-  food: ["鱼", "猪肉", "鸡肉", "冷冻食品"],
+  food: ["鱼", "猪肉", "鸡肉", "冷冻食品", "新鲜蔬菜", "水果"],
   baking: ["面粉", "糖", "牛油", "奶油", "酵母"],
 };
 

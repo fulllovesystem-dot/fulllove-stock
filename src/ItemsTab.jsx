@@ -62,7 +62,9 @@ export default function ItemsTab({ allItems, movements, stockOf, actions }) {
   // 小分类选单：预设的 + 这个部门已经用过的（打过一次，下次就会出现）
   const subOptions = [
     ...new Set([...(SUBCATEGORIES[catId] ?? []), ...allItems.filter((i) => i.categoryId === catId && i.sub).map((i) => i.sub.trim())]),
-  ].filter(Boolean);
+  ]
+    .filter((x) => x && x !== "其它")
+    .concat("其它"); // 每个部门都有「其它」，放最后
   const list = allItems
     .filter((i) => i.categoryId === catId)
     .sort((a, b) => (a.sub ?? "").localeCompare(b.sub ?? "", "zh") || a.name.localeCompare(b.name, "zh"));

@@ -23,6 +23,8 @@ import {
   today,
   round,
   useInventory,
+  amountOf,
+  latestBuyPrice,
   addItem,
   updateItem,
   deleteItem,
@@ -56,15 +58,20 @@ export default function Inventory({ me, signOut }) {
     () => (me.allDepts ? CATEGORIES : CATEGORIES.filter((c) => me.departments.includes(c.id))),
     [me.allDepts, me.departments]
   );
-  const items = useMemo(
+  const rawItems = useMemo(
     () => (me.allDepts ? allItemsRaw : allItemsRaw.filter((i) => me.departments.includes(i.categoryId))),
     [allItemsRaw, me.allDepts, me.departments]
   );
   const movements = useMemo(() => {
     if (me.allDepts) return allMovesRaw;
-    const ids = new Set(items.map((i) => i.id));
+    const ids = new Set(rawItems.map((i) => i.id));
     return allMovesRaw.filter((m) => ids.has(m.itemId));
-  }, [allMovesRaw, items, me.allDepts]);
+  }, [allMovesRaw, rawItems, me.allDepts]);
+  // 单价用「最新进货价」（鱼、肉、菜每次价钱不一样）；basePrice = 货物资料里填的单价
+  const items = useMemo(
+    () => rawItems.map((i) => ({ ...i, basePrice: i.price, price: latestBuyPrice(i, movements) })),
+    [rawItems, movements]
+  );
   // 修改记录：员工只看到自己部门的
   const historyAllowed = (r) => {
     if (me.allDepts) return true;
@@ -276,7 +283,7 @@ export default function Inventory({ me, signOut }) {
             )}
             {tab === "report" && canStock && <ReportTab items={sortedAll} movements={movements} />}
             {tab === "restock" && canStock && <RestockTab items={items} movements={movements} />}
-            {tab === "items" && canStock && <ItemsTab allItems={items} movements={movements} stockOf={stockOf} actions={actions} />}
+            {tab === "items" && canStock && <ItemsTab allItems={rawItems} movements={movements} stockOf={stockOf} actions={actions} />}
             {tab === "history" && <HistoryTab itemName={itemName} allowed={historyAllowed} />}
             {tab === "accounts" && me.isAdmin && <AccountsTab me={me} />}
           </>
@@ -463,6 +470,7 @@ function MovementTab({ type, items, allItems, movements, stockOf, showStock, act
   const [busy, setBusy] = useState(false);
   const [itemId, setItemId] = useState("");
   const [qty, setQty] = useState("");
+  const [total, setTotal] = useState("");
   const [date, setDate] = useState(today());
   const [note, setNote] = useState("");
   const [month, setMonth] = useState(today().slice(0, 7));
@@ -481,6 +489,7 @@ function MovementTab({ type, items, allItems, movements, stockOf, showStock, act
     setEditing(null);
     setItemId("");
     setQty("");
+    setTotal("");
     setNote("");
     setDate(today());
   };
@@ -489,6 +498,7 @@ function MovementTab({ type, items, allItems, movements, stockOf, showStock, act
     setEditing(m);
     setItemId(m.itemId);
     setQty(String(m.qty));
+    setTotal(m.totalPrice != null ? String(m.totalPrice) : "");
     setDate(m.date);
     setNote(m.note);
     window.scrollTo({ top: 0, behavior: "smooth" });
@@ -501,7 +511,11 @@ function MovementTab({ type, items, allItems, movements, stockOf, showStock, act
     if (!q || q <= 0) return alert("请填数量 / Please enter a quantity");
     if (!date) return alert("请选日期 / Please pick a date");
     if (busy) return;
-    const fields = { itemId: item.id, type, qty: q, price: item.price, date, note: note.trim() };
+    const t = total === "" ? null : parseFloat(total);
+    if (t != null && (isNaN(t) || t < 0)) return alert("总价不对 / Invalid total");
+    // 有填总价：单价 = 总价 ÷ 数量；没有：用单价（修改时保留原本的单价）
+    const price = t != null ? t / q : editing && editing.itemId === item.id ? editing.price : item.price;
+    const fields = { itemId: item.id, type, qty: q, price, totalPrice: isIn ? t : null, date, note: note.trim() };
     setBusy(true);
     const ok = editing ? await actions.updateMovement(editing, { ...editing, ...fields }) : await actions.addMovement(fields);
     setBusy(false);
@@ -543,10 +557,19 @@ function MovementTab({ type, items, allItems, movements, stockOf, showStock, act
               );
             })}
           </select>
-          <input value={qty} onChange={(e) => setQty(e.target.value)} type="number" min="0" step="any" placeholder="数量 / Quantity *" className={fieldCls} />
+          <input value={qty} onChange={(e) => setQty(e.target.value)} type="number" min="0" step="any" placeholder={`数量 / Quantity *${selected ? `（${selected.unit}）` : ""}`} className={fieldCls} />
+          {isIn && (
+            <input value={total} onChange={(e) => setTotal(e.target.value)} type="number" min="0" step="0.01" placeholder="总价 RM / Total (可不填)" className={fieldCls} />
+          )}
           <input aria-label="日期 / Date" value={date} onChange={(e) => setDate(e.target.value)} type="date" className={fieldCls} />
-          <input value={note} onChange={(e) => setNote(e.target.value)} placeholder="备注 / Notes (Supplier / Purpose)" className={fieldCls} />
+          <input value={note} onChange={(e) => setNote(e.target.value)} placeholder={isIn ? "备注 / Notes（供应商、几条 / Supplier, pcs）" : "备注 / Notes (Purpose)"} className={`${fieldCls} ${isIn ? "lg:col-span-2" : ""}`} />
         </div>
+        {isIn && total !== "" && parseFloat(qty) > 0 && (
+          <p className="mt-2 text-xs font-medium text-emerald-700">
+            单价自动算 / Unit price = RM {parseFloat(total || 0).toFixed(2)} ÷ {parseFloat(qty)} = <b>{fmtMoney(parseFloat(total || 0) / parseFloat(qty))}</b>
+            {selected ? ` / ${selected.unit}` : ""}
+          </p>
+        )}
         {selected && (
           <p className="mt-2 text-xs text-stone-500">
             {showStock && (
@@ -615,7 +638,12 @@ function MovementTab({ type, items, allItems, movements, stockOf, showStock, act
                       {isIn ? "+" : "-"}
                       {m.qty} {item?.unit ?? ""}
                     </td>
-                    {isIn && <td className="px-4 py-3 text-right font-medium">{fmtMoney(m.qty * m.price)}</td>}
+                    {isIn && (
+                      <td className="px-4 py-3 text-right font-medium">
+                        {fmtMoney(amountOf(m))}
+                        {m.totalPrice != null && <div className="text-xs font-normal text-stone-400">@ {fmtMoney(m.price)}</div>}
+                      </td>
+                    )}
                     <td className="px-4 py-3 text-stone-500">{m.note}</td>
                     <td className="px-4 py-3 text-right">
                       <div className="flex items-center justify-end gap-2">
@@ -677,10 +705,11 @@ function ReportTab({ items, movements }) {
         const outs = during.filter((m) => m.type === "out");
         const inQty = round(ins.reduce((s, m) => s + m.qty, 0));
         const outQty = round(outs.reduce((s, m) => s + m.qty, 0));
-        const inAmt = ins.reduce((s, m) => s + m.qty * m.price, 0);
-        const outAmt = outs.reduce((s, m) => s + m.qty * m.price, 0);
+        const inAmt = ins.reduce((s, m) => s + amountOf(m), 0);
+        const outAmt = outs.reduce((s, m) => s + amountOf(m), 0);
+        const endPrice = latestBuyPrice(item, movements, rangeTo); // 期末用当时的最新进货价
         const closeStock = round(openStock + inQty - outQty);
-        return { item, openStock, inQty, outQty, inAmt, outAmt, closeStock, closeValue: closeStock * item.price };
+        return { item, openStock, inQty, outQty, inAmt, outAmt, closeStock, price: endPrice, closeValue: closeStock * endPrice };
       }),
     [items, movements, rangeFrom, rangeTo]
   );
@@ -760,10 +789,10 @@ function ReportTab({ items, movements }) {
                   </tr>
                 </thead>
                 <tbody>
-                  {g.list.map(({ item, openStock, inQty, outQty, closeStock, closeValue }) => (
+                  {g.list.map(({ item, price, openStock, inQty, outQty, closeStock, closeValue }) => (
                     <tr key={item.id} className="border-b border-stone-100 last:border-0 hover:bg-stone-50">
                       <td className="px-4 py-3 font-medium">{item.name}</td>
-                      <td className="px-4 py-3 text-right">{fmtMoney(item.price)}</td>
+                      <td className="px-4 py-3 text-right">{fmtMoney(price)}</td>
                       <td className="px-4 py-3 text-right text-stone-600">
                         {openStock} {item.unit}
                       </td>

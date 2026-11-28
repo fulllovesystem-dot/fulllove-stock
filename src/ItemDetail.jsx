@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { X, Pencil, Trash2, PackagePlus, PackageMinus } from "lucide-react";
-import { CATEGORIES, fmtMoney, today, round } from "./data";
+import { CATEGORIES, fmtMoney, today, round, amountOf } from "./data";
 
 const fieldCls = "w-full rounded-lg border border-stone-300 bg-white px-3 py-2 text-sm outline-none focus:border-rose-400";
 
@@ -9,6 +9,7 @@ export default function ItemDetail({ item, movements, stockOf, actions, onClose,
   const [type, setType] = useState(null); // null = 表格收起来，"in" / "out" = 正在填
   const [editing, setEditing] = useState(null);
   const [qty, setQty] = useState("");
+  const [total, setTotal] = useState("");
   const [date, setDate] = useState(today());
   const [note, setNote] = useState("");
   const [busy, setBusy] = useState(false);
@@ -25,6 +26,7 @@ export default function ItemDetail({ item, movements, stockOf, actions, onClose,
     setEditing(null);
     setType(t);
     setQty("");
+    setTotal("");
     setNote("");
     setDate(today());
   };
@@ -33,6 +35,7 @@ export default function ItemDetail({ item, movements, stockOf, actions, onClose,
     setEditing(m);
     setType(m.type);
     setQty(String(m.qty));
+    setTotal(m.totalPrice != null ? String(m.totalPrice) : "");
     setDate(m.date);
     setNote(m.note);
   };
@@ -47,7 +50,11 @@ export default function ItemDetail({ item, movements, stockOf, actions, onClose,
     if (!q || q <= 0) return alert("请填数量 / Please enter a quantity");
     if (!date) return alert("请选日期 / Please pick a date");
     if (busy) return;
-    const fields = { itemId: item.id, type, qty: q, price: item.price, date, note: note.trim() };
+    const tt = total === "" ? null : parseFloat(total);
+    if (tt != null && (isNaN(tt) || tt < 0)) return alert("总价不对 / Invalid total");
+    // 有填总价：单价 = 总价 ÷ 数量；没有：用单价（修改时保留原本的单价）
+    const price = tt != null ? tt / q : editing ? editing.price : item.price;
+    const fields = { itemId: item.id, type, qty: q, price, totalPrice: type === "in" ? tt : null, date, note: note.trim() };
     setBusy(true);
     const ok = editing ? await actions.updateMovement(editing, { ...editing, ...fields }) : await actions.addMovement(fields);
     setBusy(false);
@@ -69,7 +76,7 @@ export default function ItemDetail({ item, movements, stockOf, actions, onClose,
             </p>
             <h2 className="mt-1 text-xl font-bold">{item.name}</h2>
             <p className="text-sm text-stone-500">
-              单价 / Unit price：{fmtMoney(item.price)} / {item.unit}
+              {item.basePrice != null && item.price !== item.basePrice ? "最新进货价 / Latest price" : "单价 / Unit price"}：{fmtMoney(item.price)} / {item.unit}
             </p>
           </div>
           <div className="flex items-center gap-2">
@@ -107,20 +114,31 @@ export default function ItemDetail({ item, movements, stockOf, actions, onClose,
               <h3 className="mb-3 text-sm font-semibold">
                 {editing ? (isIn ? "修改进货 / Edit Stock In" : "修改出货 / Edit Stock Out") : isIn ? "进货 / Stock In" : "出货 / Stock Out"}
               </h3>
-              <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+              <div className={`grid grid-cols-1 gap-3 ${isIn ? "sm:grid-cols-4" : "sm:grid-cols-3"}`}>
                 <label className="text-xs text-stone-500">
                   数量 / Quantity（{item.unit}）*
                   <input autoFocus value={qty} onChange={(e) => setQty(e.target.value)} type="number" min="0" step="any" className={`mt-1 ${fieldCls}`} />
                 </label>
+                {isIn && (
+                  <label className="text-xs text-stone-500">
+                    总价 RM / Total（可不填）
+                    <input value={total} onChange={(e) => setTotal(e.target.value)} type="number" min="0" step="0.01" placeholder="例如 / e.g. 85.50" className={`mt-1 ${fieldCls}`} />
+                  </label>
+                )}
                 <label className="text-xs text-stone-500">
                   日期 / Date *
                   <input value={date} onChange={(e) => setDate(e.target.value)} type="date" className={`mt-1 ${fieldCls}`} />
                 </label>
                 <label className="text-xs text-stone-500">
                   备注 / Notes
-                  <input value={note} onChange={(e) => setNote(e.target.value)} placeholder={isIn ? "供应商 / Supplier" : "用途 / Purpose"} className={`mt-1 ${fieldCls}`} />
+                  <input value={note} onChange={(e) => setNote(e.target.value)} placeholder={isIn ? "供应商、几条 / Supplier, pcs" : "用途 / Purpose"} className={`mt-1 ${fieldCls}`} />
                 </label>
               </div>
+              {isIn && total !== "" && parseFloat(qty) > 0 && (
+                <p className="mt-2 text-xs font-medium text-emerald-700">
+                  单价自动算 / Unit price = {fmtMoney(parseFloat(total || 0) / parseFloat(qty))} / {item.unit}
+                </p>
+              )}
               <div className="mt-3 flex gap-2">
                 <button
                   onClick={submit}
@@ -159,6 +177,9 @@ export default function ItemDetail({ item, movements, stockOf, actions, onClose,
                   <span className={`w-20 shrink-0 font-semibold ${m.type === "in" ? "text-emerald-700" : "text-orange-700"}`}>
                     {m.type === "in" ? "+" : "-"}
                     {m.qty}
+                  </span>
+                  <span className="w-28 shrink-0 text-right text-xs text-stone-500">
+                    {m.type === "in" ? fmtMoney(amountOf(m)) : ""}
                   </span>
                   <span className="flex-1 truncate text-stone-500">{m.note}</span>
                   <button onClick={() => openEdit(m)} className="text-stone-400 hover:text-rose-600" title="修改 / Edit">

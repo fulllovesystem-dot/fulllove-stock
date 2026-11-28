@@ -1,4 +1,4 @@
-import { CATEGORIES, fmtMoney, today, round } from "./data";
+import { CATEGORIES, fmtMoney, today, round, amountOf } from "./data";
 
 const esc = (s) =>
   String(s ?? "")
@@ -107,13 +107,13 @@ export function printMovements(type, list, items) {
         <td>${esc(item?.name ?? "（已删除 / Deleted）")}</td>
         <td>${esc(cat?.name ?? "")}</td>
         <td class="r">${m.qty} ${esc(item?.unit ?? "")}</td>
-        ${isIn ? `<td class="r">${fmtMoney(m.qty * m.price)}</td>` : ""}
+        ${isIn ? `<td class="r">${fmtMoney(amountOf(m))}</td>` : ""}
         <td>${esc(m.note)}</td>
       </tr>`;
     })
     .join("");
   const totalQty = round(list.reduce((s, m) => s + m.qty, 0));
-  const totalAmt = list.reduce((s, m) => s + m.qty * m.price, 0);
+  const totalAmt = list.reduce((s, m) => s + amountOf(m), 0);
   openPrint(`<!doctype html><html lang="zh"><head><meta charset="utf-8"><title>爱满天下 ${title}</title>
     <style>${BASE_CSS} .total td{background:#f5f0eb;font-weight:bold;}</style></head><body>
     <h1>爱满天下产后护理之家 / Postnatal Care Centre · ${title}</h1>
@@ -137,9 +137,9 @@ export function printReport(groups, totals, rangeLabel) {
       const subVal = g.list.reduce((s, r) => s + r.closeValue, 0);
       const rowsHtml = g.list
         .map(
-          ({ item, openStock, inQty, outQty, closeStock, closeValue }) => `<tr>
+          ({ item, price, openStock, inQty, outQty, closeStock, closeValue }) => `<tr>
         <td>${esc(item.name)}</td>
-        <td class="r">${fmtMoney(item.price)}</td>
+        <td class="r">${fmtMoney(price)}</td>
         <td class="r">${openStock} ${esc(item.unit)}</td>
         <td class="r in">+${inQty}</td>
         <td class="r out">-${outQty}</td>

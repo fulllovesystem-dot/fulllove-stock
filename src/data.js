@@ -27,6 +27,22 @@ export const SUBCATEGORIES = {
   baking: ["面粉", "糖", "牛油", "奶油", "酵母"],
 };
 
+// 一笔进出货的金额：有填总价就用总价，没有就 数量 × 单价
+export function amountOf(m) {
+  return m.totalPrice != null ? m.totalPrice : m.qty * m.price;
+}
+
+// 最新进货价：最近一次「有填总价」的进货，算出来的单价；没有就用货物资料里的单价
+export function latestBuyPrice(item, movements, upTo) {
+  let best = null;
+  for (const m of movements) {
+    if (m.itemId !== item.id || m.type !== "in" || m.totalPrice == null) continue;
+    if (upTo && m.date > upTo) continue;
+    if (!best || m.date > best.date || (m.date === best.date && m.createdMs > best.createdMs)) best = m;
+  }
+  return best ? best.price : item.basePrice ?? item.price;
+}
+
 export function fmtMoney(n) {
   return `RM ${(Number(n) || 0).toFixed(2)}`;
 }
@@ -64,8 +80,10 @@ function toMovement(d) {
     type: x.type === "out" ? "out" : "in",
     qty: Number(x.qty) || 0,
     price: Number(x.price) || 0,
+    totalPrice: x.totalPrice == null ? null : Number(x.totalPrice),
     date: x.date ?? "",
     note: x.note ?? "",
+    createdMs: x.createdAt?.toMillis ? x.createdAt.toMillis() : 0,
   };
 }
 
@@ -142,6 +160,7 @@ function movementFields(m) {
     type: m.type,
     qty: Number(m.qty) || 0,
     price: Number(m.price) || 0,
+    totalPrice: m.totalPrice == null || m.totalPrice === "" ? null : Number(m.totalPrice),
     date: m.date,
     note: m.note || "",
   };

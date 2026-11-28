@@ -90,10 +90,20 @@ export default function ItemsTab({ allItems, movements, stockOf, actions }) {
   const submit = async (e) => {
     e?.preventDefault();
     if (!f.name.trim() || busy) return;
-    const dup = allItems.find(
-      (i) => i.id !== editing?.id && i.categoryId === (f.categoryId ?? catId) && i.name.trim() === f.name.trim() && (i.sub ?? "") === f.sub.trim()
-    );
-    if (dup && !confirm(`这个部门已经有「${f.name.trim()}」，还要再加吗？\nAn item with this name already exists. Add anyway?`)) return;
+    // 不可以有重复的货物名字（不管大小写、空格）
+    const norm = (x) => String(x || "").toLowerCase().replace(/\s+/g, "");
+    const targetCat = editing ? f.categoryId ?? editing.categoryId : catId;
+    const same = allItems.filter((i) => i.id !== editing?.id && norm(i.name) === norm(f.name));
+    const dupHere = same.find((i) => i.categoryId === targetCat);
+    if (dupHere) {
+      alert(`「${dupHere.name}」已经有了，不可以重复！\nThis item already exists in this department.\n\n如果要改资料，请在下面的表格按 ✏️ 修改。`);
+      return;
+    }
+    const dupOther = same[0];
+    if (dupOther) {
+      const otherCat = CATEGORIES.find((c) => c.id === dupOther.categoryId)?.name ?? "";
+      if (!confirm(`「${dupOther.name}」在「${otherCat}」已经有了。\n确定在这个部门也要加吗？\nThis name exists in another department. Add here too?`)) return;
+    }
     const fields = {
       categoryId: editing ? f.categoryId ?? editing.categoryId : catId,
       sub: f.sub.trim(),
